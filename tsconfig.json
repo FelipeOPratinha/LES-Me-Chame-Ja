@@ -3,10 +3,13 @@
   "compilerOptions": {
     "strict": true,
     "jsx": "react-jsx",
-
     "baseUrl": ".",
     "paths": {
-      "~/*": ["src/*"]
+      "~/*": ["src/*"],
+      "~/components/map": [
+        "src/components/map/index.native.tsx",
+        "src/components/map/index.web.tsx"
+      ]
     }
   }
 }
