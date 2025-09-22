@@ -145,9 +145,9 @@ export function Header() {
               { label: "Meus Pedidos", route: "/orders" },
               { label: "Minha Carteira", route: "/wallet" },
               { label: "Formulário de Entrega", route: "/form" },
-              { label: "Motoristas Favoritos", route: "/profile" },
+              { label: "Motoristas Favoritos", route: "/drivers" },
               { label: "Centro de Fidelidade", route: "/fidelity" },
-              { label: "Suporte e Atendimento", route: "/config" },
+              { label: "Suporte e Atendimento", route: "/policies" },
               { label: "Configurações", route: "/config" },
             ].map((item, index) => (
               <Pressable
@@ -161,6 +161,7 @@ export function Header() {
                 <Text className="text-base text-gray-700">{item.label}</Text>
               </Pressable>
             ))}
+
 
             {/* Botão de sair */}
             <View className="flex w-full items-center">

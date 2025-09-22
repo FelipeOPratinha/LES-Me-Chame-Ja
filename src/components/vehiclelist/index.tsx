@@ -70,7 +70,7 @@ export function VehicleList() {
   };
 
   return (
-    <View className="w-full mt-4 relative">
+    <View className="w-full mt-4 relative z-[-1]">
       {/* Header */}
       <View className="flex-row items-center justify-between px-2 mb-3 bg-white rounded-xl shadow p-2">
         <Text className="text-base font-semibold text-[#5E60CE] m-auto">
