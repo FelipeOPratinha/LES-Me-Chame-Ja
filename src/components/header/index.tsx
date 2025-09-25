@@ -86,10 +86,12 @@ export function Header() {
                   : "transparent",
               },
             ]}
+            onPress={() => router.push("home")}
           >
             <Image
               source={require("../../../assets/MeChameJa-Logo.png")}
-              style={{ width: 38, height: 38, resizeMode: "contain" }}
+              style={{ width: 38, height: 38 }}
+              resizeMode="contain"
             />
           </Pressable>
 
@@ -166,7 +168,7 @@ export function Header() {
             {/* Botão de sair */}
             <View className="flex w-full items-center">
               <Pressable
-                onPress={() => console.log("Logout")}
+                onPress={() => router.push("/")}
                 className="w-fit mt-10 py-3 px-6 bg-[#5E60CE] rounded-lg"
               >
                 <Text className="text-white font-semibold">Sair</Text>

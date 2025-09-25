@@ -415,13 +415,13 @@ export function SearchBar({ onSetRetirada, onSetParadas, onSetDestino }: Props) 
         <Pressable
           onPress={closeAllDropdowns}
           style={{
+            pointerEvents: "box-none",
             position: "absolute",
             top: 0,
             left: 0,
             right: 0,
             bottom: 0,
           }}
-          pointerEvents="box-none"
         />
       )}
     </View>
