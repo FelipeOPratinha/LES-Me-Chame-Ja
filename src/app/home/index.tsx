@@ -31,7 +31,14 @@ export default function Home() {
               contentContainerClassName="flex flex-col gap-4 m-1"
               showsVerticalScrollIndicator={false}
             >
-              <SearchBar />
+              {/* MODIFICAR DPS */}
+              <SearchBar onSetRetirada={function (coords: { lat: number; lon: number; } | null): void {
+                throw new Error("Function not implemented.");
+              } } onSetParadas={function (coords: { lat: number; lon: number; }[]): void {
+                throw new Error("Function not implemented.");
+              } } onSetDestino={function (coords: { lat: number; lon: number; } | null): void {
+                throw new Error("Function not implemented.");
+              } } />
               <VehicleList />
               <CategoryList />
             </ScrollView>

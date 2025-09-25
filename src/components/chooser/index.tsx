@@ -80,8 +80,8 @@ export function Chooser({ onSelect }: Props) {
             }}
           />
           <View
-            pointerEvents="none"
             style={{
+              pointerEvents: "none",
               position: "absolute",
               bottom: 0,
               left: 0,

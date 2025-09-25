@@ -127,7 +127,7 @@ export default function Index() {
           )}
           {/* 🚀 Botão temporário para ir direto pro /home */}
           <Pressable
-            onPress={() => router.push("/home")}
+            onPress={() => router.push("home")}
             className="mt-10 px-6 py-3 bg-green-500 rounded-lg"
           >
             <Text className="text-white font-bold">Ir para Home</Text>

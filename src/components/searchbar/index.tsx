@@ -1,106 +1,423 @@
-// src/components/searchbar/index.tsx
-import { useState } from "react";
-import { View, TextInput, Pressable, Text } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons, FontAwesome, Entypo, MaterialCommunityIcons, Fontisto } from "@expo/vector-icons";
+import { useState, useRef } from "react";
+import {
+  View,
+  TextInput,
+  Text,
+  TouchableOpacity,
+  Pressable,
+  ScrollView,
+  Keyboard,
+} from "react-native";
+import {
+  Entypo,
+  Fontisto,
+  MaterialCommunityIcons,
+  Ionicons,
+  FontAwesome,
+} from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 
-export function SearchBar() {
+type Coords = { lat: number; lon: number };
+type Suggestion = { label: string; lat: number; lon: number };
+
+// 'retirada' | 'destino' | número da parada extra | null
+type OpenKey = "retirada" | "destino" | number | null;
+
+type Props = {
+  onSetRetirada: (coords: Coords | null) => void;
+  onSetParadas: (coords: Coords[]) => void;
+  onSetDestino: (coords: Coords | null) => void;
+};
+
+const INPUT_ROW_HEIGHT = 48;
+const SUGGESTION_LIMIT = 5;
+
+export function SearchBar({ onSetRetirada, onSetParadas, onSetDestino }: Props) {
+  // valores digitados
+  const [retirada, setRetirada] = useState("");
+  const [destino, setDestino] = useState("");
   const [extraDestinos, setExtraDestinos] = useState<string[]>([]);
 
-  const handleAddDestino = () => {
-    setExtraDestinos([...extraDestinos, ""]);
-  };
+  // coordenadas selecionadas (extras)
+  const [paradasCoords, setParadasCoords] = useState<(Coords | null)[]>([]);
 
-  const handleRemoveDestino = (index: number) => {
-    setExtraDestinos(extraDestinos.filter((_, i) => i !== index));
+  // sugestões
+  const [sugestoesRetirada, setSugestoesRetirada] = useState<Suggestion[]>([]);
+  const [sugestoesDestino, setSugestoesDestino] = useState<Suggestion[]>([]);
+  const [sugestoesExtras, setSugestoesExtras] = useState<Record<number, Suggestion[]>>({});
+
+  // quem está com dropdown aberto (para controlar zIndex)
+  const [openDropdown, setOpenDropdown] = useState<OpenKey>(null);
+
+  // debounces
+  const debounceRetiradaRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceDestinoRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceExtrasRef = useRef<Record<number, NodeJS.Timeout | null>>({});
+
+  // ---- utils ----
+  async function buscarSugestoes(query: string): Promise<Suggestion[]> {
+    if (!query.trim()) return [];
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+      query
+    )}&addressdetails=1&limit=${SUGGESTION_LIMIT}&countrycodes=br`;
+
+    const resp = await fetch(url, { headers: { "Accept-Language": "pt-BR" } });
+    const dados = await resp.json();
+
+    return dados.map((item: any) => ({
+      label: item.display_name,
+      lat: parseFloat(item.lat),
+      lon: parseFloat(item.lon),
+    }));
+  }
+
+  function atualizarParadasNoPai(novas: (Coords | null)[]) {
+    onSetParadas((novas.filter(Boolean) as Coords[]));
+  }
+
+  function closeAllDropdowns() {
+    setOpenDropdown(null);
+    setSugestoesRetirada([]);
+    setSugestoesDestino([]);
+    setSugestoesExtras({});
+  }
+
+  // ---- retirada ----
+  function handleChangeRetirada(texto: string) {
+    setRetirada(texto);
+    if (debounceRetiradaRef.current) clearTimeout(debounceRetiradaRef.current);
+    if (texto.length <= 3) {
+      setSugestoesRetirada([]);
+      onSetRetirada(null);
+      if (openDropdown === "retirada") setOpenDropdown(null);
+      return;
+    }
+    setOpenDropdown("retirada");
+    debounceRetiradaRef.current = setTimeout(async () => {
+      const lista = await buscarSugestoes(texto);
+      setSugestoesRetirada(lista);
+      if (lista.length === 0 && openDropdown === "retirada") setOpenDropdown(null);
+    }, 1000);
+  }
+
+  function handleSelectRetirada(item: Suggestion) {
+    setRetirada(item.label);
+    setSugestoesRetirada([]);
+    setOpenDropdown(null);
+    onSetRetirada({ lat: item.lat, lon: item.lon });
+    Keyboard.dismiss();
+  }
+
+  // ---- destino ----
+  function handleChangeDestino(texto: string) {
+    setDestino(texto);
+    if (debounceDestinoRef.current) clearTimeout(debounceDestinoRef.current);
+    if (texto.length <= 3) {
+      setSugestoesDestino([]);
+      onSetDestino(null);
+      if (openDropdown === "destino") setOpenDropdown(null);
+      return;
+    }
+    setOpenDropdown("destino");
+    debounceDestinoRef.current = setTimeout(async () => {
+      const lista = await buscarSugestoes(texto);
+      setSugestoesDestino(lista);
+      if (lista.length === 0 && openDropdown === "destino") setOpenDropdown(null);
+    }, 1000);
+  }
+
+  function handleSelectDestino(item: Suggestion) {
+    setDestino(item.label);
+    setSugestoesDestino([]);
+    setOpenDropdown(null);
+    onSetDestino({ lat: item.lat, lon: item.lon });
+    Keyboard.dismiss();
+  }
+
+  // ---- paradas extras ----
+  function handleChangeExtra(texto: string, index: number) {
+    const novos = [...extraDestinos];
+    novos[index] = texto;
+    setExtraDestinos(novos);
+
+    if (debounceExtrasRef.current[index]) {
+      clearTimeout(debounceExtrasRef.current[index] as NodeJS.Timeout);
+    }
+
+    if (texto.length <= 3) {
+      setSugestoesExtras((prev) => ({ ...prev, [index]: [] }));
+      // invalida coord se o texto ficou curto
+      const novasCoords = [...paradasCoords];
+      novasCoords[index] = null;
+      setParadasCoords(novasCoords);
+      atualizarParadasNoPai(novasCoords);
+      if (openDropdown === index) setOpenDropdown(null);
+      return;
+    }
+
+    setOpenDropdown(index);
+    debounceExtrasRef.current[index] = setTimeout(async () => {
+      const lista = await buscarSugestoes(texto);
+      setSugestoesExtras((prev) => ({ ...prev, [index]: lista }));
+      if (lista.length === 0 && openDropdown === index) setOpenDropdown(null);
+    }, 1000);
+  }
+
+  function handleSelectExtra(item: Suggestion, index: number) {
+    // fixa texto
+    const novosTxt = [...extraDestinos];
+    novosTxt[index] = item.label;
+    setExtraDestinos(novosTxt);
+
+    // limpa dropdown específico
+    setSugestoesExtras((prev) => ({ ...prev, [index]: [] }));
+    setOpenDropdown(null);
+
+    // salva coord
+    const novasCoords = [...paradasCoords];
+    while (novasCoords.length < novosTxt.length) novasCoords.push(null);
+    novasCoords[index] = { lat: item.lat, lon: item.lon };
+    setParadasCoords(novasCoords);
+    atualizarParadasNoPai(novasCoords);
+    Keyboard.dismiss();
+  }
+
+  function handleAddDestino() {
+    setExtraDestinos((prev) => [...prev, ""]);
+    setParadasCoords((prev) => [...prev, null]);
+  }
+
+  function handleRemoveDestino(index: number) {
+    const novosTxt = extraDestinos.filter((_, i) => i !== index);
+    setExtraDestinos(novosTxt);
+
+    const novasCoords = paradasCoords.filter((_, i) => i !== index);
+    setParadasCoords(novasCoords);
+    atualizarParadasNoPai(novasCoords);
+
+    setSugestoesExtras((prev) => {
+      const clone = { ...prev };
+      delete clone[index];
+      return clone;
+    });
+
+    if (debounceExtrasRef.current[index]) {
+      clearTimeout(debounceExtrasRef.current[index] as NodeJS.Timeout);
+      delete debounceExtrasRef.current[index];
+    }
+
+    if (openDropdown === index) setOpenDropdown(null);
+  }
+
+  // estilo do dropdown absoluto
+  const dropdownStyle = {
+    position: "absolute" as const,
+    top: INPUT_ROW_HEIGHT,
+    left: 0,
+    right: 0,
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 20,
+    zIndex: 999,
+    overflow: "hidden" as const,
   };
 
   return (
     <View className="w-full mt-4">
       {/* Header */}
-      <View className="flex-row items-center justify-between bg-white px-2 mb-3 rounded-xl shadow p-2 hover:bg-slate-200">
-        <Text className="text-base font-semibold text-[#5E60CE] text-center m-auto">Rota</Text>
+      <View className="flex-row items-center justify-between bg-white px-2 mb-3 rounded-xl shadow p-2">
+        <Text className="text-base font-semibold text-[#5E60CE] text-center m-auto">
+          Rota
+        </Text>
       </View>
-      <View className="w-full min-w-fit bg-white rounded-xl shadow-md p-2 mb-4 space-y-3">
-        {/* Linha 1 - Retirada */}
-        <View className="h-10 flex flex-row items-center space-x-2 hover:bg-slate-200 rounded-t-md border-b border-slate-400 justify-start">
-          <View className="w-5">
-            <Entypo name="circle" size={20} color="#5390D9" className="flex justify-center" />
-          </View>
-          <TextInput
-            placeholder="Retirada (Rua e número)"
-            className="flex-1 text-sm text-gray-700 p-2"
-            placeholderTextColor="#999"
-          />
-          <View className="w-fit rounded-lg overflow-hidden">
+
+      {/* Card do formulário: precisa permitir overlay visível */}
+      <View
+        className="w-full min-w-fit bg-white rounded-xl shadow-md p-2 mb-4"
+        style={{ overflow: "visible" }}
+      >
+        {/* RETIRADA - row container */}
+        <View
+          style={{
+            position: "relative",
+            zIndex: openDropdown === "retirada" ? 30 : 1,
+            marginBottom: 8,
+          }}
+        >
+          <View
+            className="flex flex-row items-center border-b border-slate-400 bg-white rounded-t-md hover:bg-slate-200"
+            style={{ height: INPUT_ROW_HEIGHT }}
+          >
+            <View className="w-5">
+              <Entypo name="circle" size={20} color="#5390D9" className="flex justify-center" />
+            </View>
+            <TextInput
+              placeholder="Retirada (Rua e número)"
+              value={retirada}
+              onChangeText={handleChangeRetirada}
+              className="flex-1 text-sm text-gray-700 p-2"
+              placeholderTextColor="#999"
+            />
             <Picker
               selectedValue="Agora"
               onValueChange={() => {}}
               style={{ backgroundColor: "transparent" }}
+              className="h-full"
             >
               <Picker.Item label="Agora" value="Agora" />
               <Picker.Item label="Agendar" value="Agendar" />
             </Picker>
           </View>
+
+          {openDropdown === "retirada" && sugestoesRetirada.length > 0 && (
+            <View style={dropdownStyle}>
+              <ScrollView keyboardShouldPersistTaps="handled">
+                {sugestoesRetirada.map((item, idx) => (
+                  <TouchableOpacity
+                    key={`retirada-${idx}`}
+                    onPress={() => handleSelectRetirada(item)}
+                    style={{
+                      justifyContent: "center",
+                      paddingHorizontal: 12,
+                      borderBottomWidth: 1,
+                      borderBottomColor: "#eee",
+                    }}
+                  >
+                    <Text style={{ fontSize: 14, color: "#333" }}>{item.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
         </View>
-        {/* Destinos extras aparecem aqui */}
-        {extraDestinos.map((_, index) => (
+
+        {/* PARADAS EXTRAS */}
+        {extraDestinos.map((valor, index) => (
           <View
             key={index}
-            className="h-10 flex flex-row items-center space-x-2 hover:bg-slate-200 border-b border-slate-400 justify-between"
+            style={{
+              position: "relative",
+              zIndex: openDropdown === index ? 30 : 1,
+              marginBottom: 8,
+            }}
           >
-            <View className="flex flex-row items-center flex-1 space-x-2">
+            <View
+              className="flex flex-row items-center border-b border-slate-400 bg-white hover:bg-slate-200"
+              style={{ height: INPUT_ROW_HEIGHT }}
+            >
               <View className="w-5">
-                <MaterialCommunityIcons
-                  name="dots-vertical"
-                  size={20}
-                  color="#64DFDF"
-                  className="flex justify-center"
-                />
+                <MaterialCommunityIcons name="dots-vertical" size={20} color="#64DFDF" className="flex justify-center" />
               </View>
               <TextInput
                 placeholder={`Parada ${index + 1}`}
+                value={valor}
+                onChangeText={(t) => handleChangeExtra(t, index)}
                 className="flex-1 text-sm text-gray-700 p-2"
                 placeholderTextColor="#999"
               />
+              <Pressable onPress={() => handleRemoveDestino(index)} className="px-2 py-1">
+                <Ionicons name="close-outline" size={22} color="#E63946" />
+              </Pressable>
             </View>
-            {/* Botão remover */}
-            <Pressable
-              onPress={() => handleRemoveDestino(index)}
-              className="p-2 rounded-full hover:bg-slate-300"
-            >
-              <Ionicons name="close-outline" size={20} color="#E63946" />
-            </Pressable>
+
+            {openDropdown === index && (sugestoesExtras[index]?.length ?? 0) > 0 && (
+              <View style={dropdownStyle}>
+                <ScrollView keyboardShouldPersistTaps="handled">
+                  {sugestoesExtras[index]!.map((item, idx2) => (
+                    <TouchableOpacity
+                      key={`extra-${index}-${idx2}`}
+                      onPress={() => handleSelectExtra(item, index)}
+                      style={{
+                        justifyContent: "center",
+                        paddingHorizontal: 12,
+                        borderBottomWidth: 1,
+                        borderBottomColor: "#eee",
+                      }}
+                    >
+                      <Text style={{ fontSize: 14, color: "#333" }}>{item.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
           </View>
         ))}
-        {/* Linha 2 - Destino final */}
-        <View className="h-10 flex flex-row items-center space-x-2 hover:bg-slate-200 border-b border-slate-400 justify-between">
-          <View className="w-5">
-            <Fontisto
-              name="map-marker-alt"
-              size={20}
-              color="#5390D9"
-              className="flex justify-center"
+
+        {/* DESTINO FINAL */}
+        <View
+          style={{
+            position: "relative",
+            zIndex: openDropdown === "destino" ? 30 : 1,
+            marginBottom: 8,
+          }}
+        >
+          <View
+            className="flex flex-row items-center border-b border-slate-400 bg-white hover:bg-slate-200"
+            style={{ height: INPUT_ROW_HEIGHT }}
+          >
+            <View className="w-5">
+              <Fontisto name="map-marker-alt" size={20} color="#5390D9" className="flex justify-center" />
+            </View>
+            <TextInput
+              placeholder="Destino (Rua e número)"
+              value={destino}
+              onChangeText={handleChangeDestino}
+              className="flex-1 text-sm text-gray-700 p-2"
+              placeholderTextColor="#999"
             />
           </View>
-          <TextInput
-            placeholder="Destino (Rua e número)"
-            className="w-full text-sm text-gray-700 p-2"
-            placeholderTextColor="#999"
-          />
+
+          {openDropdown === "destino" && sugestoesDestino.length > 0 && (
+            <View style={dropdownStyle}>
+              <ScrollView keyboardShouldPersistTaps="handled">
+                {sugestoesDestino.map((item, idx) => (
+                  <TouchableOpacity
+                    key={`destino-${idx}`}
+                    onPress={() => handleSelectDestino(item)}
+                    style={{
+                      justifyContent: "center",
+                      paddingHorizontal: 12,
+                      borderBottomWidth: 1,
+                      borderBottomColor: "#eee",
+                    }}
+                  >
+                    <Text style={{ fontSize: 14, color: "#333" }}>{item.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
         </View>
-        {/* Linha 3 - Botão adicionar */}
+
+        {/* Adicionar parada */}
         <Pressable
           onPress={handleAddDestino}
-          className="h-10 flex flex-row items-center justify-center space-x-2 hover:bg-slate-200 rounded-b-md"
+          className="flex flex-row items-center justify-center py-2 hover:bg-slate-200 rounded-b-md"
         >
           <FontAwesome name="plus" size={16} color="#5E60CE" />
-          <Text className="text-base font-medium text-[#5E60CE]">
+          <Text className="ml-2 text-base font-medium text-[#5E60CE]">
             Adicionar ponto de entrega
           </Text>
         </Pressable>
       </View>
+
+      {/* Tap fora para fechar dropdowns */}
+      {openDropdown !== null && (
+        <Pressable
+          onPress={closeAllDropdowns}
+          style={{
+            pointerEvents: "box-none",
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+          }}
+        />
+      )}
     </View>
   );
 }
