@@ -30,9 +30,7 @@ type Props = {
 };
 
 const INPUT_ROW_HEIGHT = 48;
-const SUGGESTION_LIMIT = 7;        // quantas opções pedir pro Nominatim
-const DROPDOWN_VISIBLE_ROWS = 5;   // quantas ficam visíveis sem scroll
-const SUGGESTION_ITEM_HEIGHT = 56; // altura fixa de cada item do dropdown
+const SUGGESTION_LIMIT = 5;
 
 export function SearchBar({ onSetRetirada, onSetParadas, onSetDestino }: Props) {
   // valores digitados
@@ -223,8 +221,7 @@ export function SearchBar({ onSetRetirada, onSetParadas, onSetDestino }: Props) 
     shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 20,
-    maxHeight: SUGGESTION_ITEM_HEIGHT * DROPDOWN_VISIBLE_ROWS, //
-    zIndex: 9999,
+    zIndex: 999,
     overflow: "hidden" as const,
   };
 
@@ -283,7 +280,6 @@ export function SearchBar({ onSetRetirada, onSetParadas, onSetDestino }: Props) 
                     key={`retirada-${idx}`}
                     onPress={() => handleSelectRetirada(item)}
                     style={{
-                      height: SUGGESTION_ITEM_HEIGHT,
                       justifyContent: "center",
                       paddingHorizontal: 12,
                       borderBottomWidth: 1,
@@ -335,7 +331,6 @@ export function SearchBar({ onSetRetirada, onSetParadas, onSetDestino }: Props) 
                       key={`extra-${index}-${idx2}`}
                       onPress={() => handleSelectExtra(item, index)}
                       style={{
-                        height: SUGGESTION_ITEM_HEIGHT,
                         justifyContent: "center",
                         paddingHorizontal: 12,
                         borderBottomWidth: 1,
@@ -383,7 +378,6 @@ export function SearchBar({ onSetRetirada, onSetParadas, onSetDestino }: Props) 
                     key={`destino-${idx}`}
                     onPress={() => handleSelectDestino(item)}
                     style={{
-                      height: SUGGESTION_ITEM_HEIGHT,
                       justifyContent: "center",
                       paddingHorizontal: 12,
                       borderBottomWidth: 1,
